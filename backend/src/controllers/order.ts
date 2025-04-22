@@ -5,6 +5,7 @@ import NotFoundError from '../errors/not-found-error'
 import Order, { IOrder } from '../models/order'
 import Product, { IProduct } from '../models/product'
 import User from '../models/user'
+import sanitizeHtml from 'sanitize-html'
 
 // eslint-disable-next-line max-len
 // GET /orders?page=2&limit=5&sort=totalAmount&order=desc&orderDateFrom=2024-07-01&orderDateTo=2024-08-01&status=delivering&totalAmountFrom=100&totalAmountTo=1000&search=%2B1
@@ -27,6 +28,8 @@ export const getOrders = async (
             orderDateTo,
             search,
         } = req.query
+
+        const normalLimit = Math.min(Number(limit), 10)
 
         const filters: FilterQuery<Partial<IOrder>> = {}
 
@@ -116,8 +119,8 @@ export const getOrders = async (
 
         aggregatePipeline.push(
             { $sort: sort },
-            { $skip: (Number(page) - 1) * Number(limit) },
-            { $limit: Number(limit) },
+            { $skip: (Number(page) - 1) * normalLimit },
+            { $limit: normalLimit },
             {
                 $group: {
                     _id: '$_id',
@@ -133,7 +136,7 @@ export const getOrders = async (
 
         const orders = await Order.aggregate(aggregatePipeline)
         const totalOrders = await Order.countDocuments(filters)
-        const totalPages = Math.ceil(totalOrders / Number(limit))
+        const totalPages = Math.ceil(totalOrders / normalLimit)
 
         res.status(200).json({
             orders,
@@ -141,7 +144,7 @@ export const getOrders = async (
                 totalOrders,
                 totalPages,
                 currentPage: Number(page),
-                pageSize: Number(limit),
+                pageSize: normalLimit,
             },
         })
     } catch (error) {
@@ -193,6 +196,7 @@ export const getOrdersCurrentUser = async (
             orders = orders.filter((order) => {
                 // eslint-disable-next-line max-len
                 const matchesProductTitle = order.products.some((product) =>
+                    // @ts-ignore
                     productIds.some((id) => id.equals(product._id))
                 )
                 // eslint-disable-next-line max-len
@@ -295,6 +299,7 @@ export const createOrder = async (
             req.body
 
         items.forEach((id: Types.ObjectId) => {
+            // @ts-ignore
             const product = products.find((p) => p._id.equals(id))
             if (!product) {
                 throw new BadRequestError(`Товар с id ${id} не найден`)
@@ -309,13 +314,17 @@ export const createOrder = async (
             return next(new BadRequestError('Неверная сумма заказа'))
         }
 
+        const sanitizedComment = sanitizeHtml(comment, {
+            allowedTags: ['b', 'i', 'em', 'strong'],
+        })
+
         const newOrder = new Order({
             totalAmount: total,
             products: items,
             payment,
             phone,
             email,
-            comment,
+            sanitizedComment,
             customer: userId,
             deliveryAddress: address,
         })
