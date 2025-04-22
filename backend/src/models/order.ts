@@ -9,13 +9,6 @@ import {
 import Counter from './counter'
 import User from './user'
 
-// export enum StatusType {
-//     Cancelled = 'cancelled',
-//     Completed = 'completed',
-//     New = 'new',
-//     Delivering = 'delivering',
-// }
-
 export interface IOrder extends Document {
     id: Types.ObjectId
     orderNumber: number

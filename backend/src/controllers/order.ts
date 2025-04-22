@@ -1,11 +1,11 @@
 import { NextFunction, Request, Response } from 'express'
 import { FilterQuery, Error as MongooseError, Types } from 'mongoose'
+import sanitizeHtml from 'sanitize-html'
 import BadRequestError from '../errors/bad-request-error'
 import NotFoundError from '../errors/not-found-error'
 import Order, { IOrder } from '../models/order'
 import Product, { IProduct } from '../models/product'
 import User from '../models/user'
-import sanitizeHtml from 'sanitize-html'
 
 // eslint-disable-next-line max-len
 // GET /orders?page=2&limit=5&sort=totalAmount&order=desc&orderDateFrom=2024-07-01&orderDateTo=2024-08-01&status=delivering&totalAmountFrom=100&totalAmountTo=1000&search=%2B1
@@ -29,7 +29,7 @@ export const getOrders = async (
             search,
         } = req.query
 
-        const normalLimit = Math.min(Number(limit), 10)
+        const normalizedLimit = Math.min(Number(limit), 10)
 
         const filters: FilterQuery<Partial<IOrder>> = {}
 
@@ -119,8 +119,8 @@ export const getOrders = async (
 
         aggregatePipeline.push(
             { $sort: sort },
-            { $skip: (Number(page) - 1) * normalLimit },
-            { $limit: normalLimit },
+            { $skip: (Number(page) - 1) * normalizedLimit },
+            { $limit: normalizedLimit },
             {
                 $group: {
                     _id: '$_id',
@@ -136,7 +136,7 @@ export const getOrders = async (
 
         const orders = await Order.aggregate(aggregatePipeline)
         const totalOrders = await Order.countDocuments(filters)
-        const totalPages = Math.ceil(totalOrders / normalLimit)
+        const totalPages = Math.ceil(totalOrders / normalizedLimit)
 
         res.status(200).json({
             orders,
@@ -144,7 +144,7 @@ export const getOrders = async (
                 totalOrders,
                 totalPages,
                 currentPage: Number(page),
-                pageSize: normalLimit,
+                pageSize: normalizedLimit,
             },
         })
     } catch (error) {
